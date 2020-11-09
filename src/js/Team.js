@@ -18,6 +18,10 @@ export default class Team {
     });
   }
 
+  delete(elem) {
+    this.members.delete(elem);
+  }
+
   toArray() {
     return Array.from(this.members);
   }

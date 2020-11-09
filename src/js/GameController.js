@@ -29,6 +29,8 @@ export default class GameController {
     this.indexChar = null;
     this.indexCursor = null;
     this.levelGame = 1;
+    this.points = 0;
+    this.pointsAll = [];
   }
 
   init() {
@@ -36,7 +38,7 @@ export default class GameController {
     // TODO: load saved stated from stateService
     this.gamePlay.drawUi(themes.prairie);
 
-    this.userTeam.addAll(...generateTeam(userPerson, 1, 2));
+    this.userTeam.addAll(...generateTeam([Bowman, Swordsman], 1, 2));
     this.botTeam.addAll(...generateTeam(botPerson, 1, 2));
     this.getCommand(this.userTeam, userPosition);
     this.getCommand(this.botTeam, botPosition);
@@ -152,10 +154,91 @@ export default class GameController {
     return result.includes(index);
   }
 
+  checkWin() {
+    if (this.levelGame === 4 && this.botTeam.members.size === 0) {
+      GamePlay.showMessage('Поздравляю, вы выиграли!!!');
+      this.scoring();
+      this.pointsAll.push(this.points);
+      this.levelGame += 1;
+    }
+
+    if (this.botTeam.members.size === 0 && this.levelGame <= 3) {
+      this.levelGame += 1;
+      GamePlay.showMessage(`Переход на уровень ${this.levelGame}!`);
+      this.scoring();
+      this.getLevelUp();
+    }
+
+    if (this.userTeam.members.size === 0) {
+      this.pointsAll.push(this.ponts);
+      GamePlay.showMessage('Очень жаль, вы проиграли :(');
+    }
+  }
+
+  getLevelUp() {
+    this.command = [];
+    this.userTeam.members.forEach((char) => char.levelUp());
+
+    if (this.levelGame === 2) {
+      this.gamePlay.drawUi(themes.desert);
+      this.userTeam.addAll(...generateTeam(userPerson, 1, 1));
+      this.botTeam.addAll(...generateTeam(botPerson, 2, this.userTeam.members.size));
+    }
+
+    if (this.levelGame === 3) {
+      this.gamePlay.drawUi(themes.arctic);
+      this.userTeam.addAll(...generateTeam(userPerson, 2, 2));
+      this.botTeam.addAll(...generateTeam(botPerson, 3, this.userTeam.members.size));
+    }
+
+    if (this.levelGame === 4) {
+      this.gamePlay.drawUi(themes.mountain);
+      this.userTeam.addAll(...generateTeam(userPerson, 3, 2));
+      this.botTeam.addAll(...generateTeam(botPerson, 4, this.userTeam.members.size));
+    }
+
+    this.getCommand(this.userTeam, userPosition);
+    this.getCommand(this.botTeam, botPosition);
+    this.gamePlay.redrawPositions(this.command);
+  }
+
+  enterAttack(index) {
+    const attacker = this.findCharacter(this.indexChar).character;
+    const target = this.findCharacter(index).character;
+    const damage = Math.max(attacker.attack - target.defence, attacker.attack * 0.1);
+
+    this.gamePlay.showDamage(index, damage).then(() => {
+      target.health -= damage;
+      if (target.health <= 0) {
+        this.command.splice(this.command.indexOf(this.findCharacter(index)), 1);
+        this.userTeam.delete(target);
+        this.botTeam.delete(target);
+      }
+      this.gamePlay.redrawPositions(this.command);
+      this.checkWin();
+    });
+  }
+
+  scoring() {
+    this.points += this.userTeam.toArray().reduce((a, b) => a + b.health, 0);
+  }
+
+  botPlaying() {
+
+  }
+
   onCellClick(index) {
+    if (this.counter === 15) {
+      GamePlay.showMessage('Не ваш ход!');
+      return;
+    }
+
+    if (this.levelGame === 5) {
+      return;
+    }
+
     if (this.findCharacter(index)) {
       if (userPerson.some((elem) => this.findCharacter(index).character instanceof elem)) {
-        console.log('ololo');
         if (this.indexChar === null) {
           this.indexChar = index;
         } else {
@@ -169,18 +252,27 @@ export default class GameController {
         GamePlay.showError('Это не Ваш персонаж!');
       }
     }
-
     if (this.indexChar !== null) {
       if (this.checkMove(this.indexChar, index, this.findCharacter(this.indexChar)) && !this.findCharacter(index)) {
         this.findCharacter(this.indexChar).position = index;
         this.gamePlay.deselectCell(this.indexChar);
         this.gamePlay.deselectCell(this.indexCursor);
         this.indexChar = null;
+        this.counter = 1;
         this.gamePlay.redrawPositions(this.command);
       }
 
-      if (botPerson.some((elem) => this.findCharacter(index).character instanceof elem) && this.checkAttack(this.indexChar, index, this.findCharacter(this.indexChar))) {
-        console.log('okioki');
+      if (this.findCharacter(index) && botPerson.some((elem) => this.findCharacter(index).character instanceof elem) && this.checkAttack(this.indexChar, index, this.findCharacter(this.indexChar))) {
+        this.enterAttack(index);
+        this.gamePlay.deselectCell(this.indexChar);
+        this.gamePlay.deselectCell(this.indexCursor);
+        this.indexChar = null;
+        this.counter = 1;
+        this.gamePlay.setCursor(cursors.auto);
+      }
+
+      if (this.indexChar !== index && this.gamePlay.boardEl.style.cursor === 'not-allowed') {
+        GamePlay.showMessage('Так делать нельзя!');
       }
     }
     // TODO: react to click
@@ -197,7 +289,7 @@ export default class GameController {
       this.gamePlay.setCursor(cursors.notallowed);
       if (this.indexCursor === null) {
         this.indexCursor = index;
-      } else {
+      } else if (this.indexChar !== this.indexCursor) {
         this.gamePlay.deselectCell(this.indexCursor);
       }
 
@@ -218,6 +310,8 @@ export default class GameController {
           this.indexCursor = index;
         }
       }
+    } else {
+      this.gamePlay.setCursor(cursors.auto);
     }
   }
 
