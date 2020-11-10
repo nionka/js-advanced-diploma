@@ -48,10 +48,22 @@ export default class GameController {
     this.gamePlay.addCellEnterListener(this.onCellEnter.bind(this));
     this.gamePlay.addCellLeaveListener(this.onCellLeave.bind(this));
     this.gamePlay.addCellClickListener(this.onCellClick.bind(this));
+    this.gamePlay.addNewGameListener(this.onNewGameClick.bind(this));
+    this.gamePlay.addSaveGameListener(this.onSaveGameClick.bind(this));
+    this.gamePlay.addLoadGameListener(this.onLoadGameClick.bind(this));
   }
 
   getRandomPosition(positions) {
-    return positions[Math.floor(Math.random() * positions.length)];
+    let pos = positions[Math.floor(Math.random() * positions.length)];
+
+    while (this.checkRandomPosition(pos)) {
+      pos = positions[Math.floor(Math.random() * positions.length)];
+    }
+    return pos;
+  }
+
+  checkRandomPosition(pos) {
+    return this.command.some((elem) => (elem.position === pos));
   }
 
   findCharacter(index) {
@@ -156,9 +168,9 @@ export default class GameController {
 
   checkWin() {
     if (this.levelGame === 4 && this.botTeam.members.size === 0) {
-      GamePlay.showMessage('Поздравляю, вы выиграли!!!');
       this.scoring();
       this.pointsAll.push(this.points);
+      GamePlay.showMessage(`Поздравляю, вы выиграли!!! Количество набранных очков за игру ${this.points}, максимальное количество ${Math.max(this.pointsAll)}`);
       this.levelGame += 1;
     }
 
@@ -171,7 +183,7 @@ export default class GameController {
 
     if (this.userTeam.members.size === 0) {
       this.pointsAll.push(this.ponts);
-      GamePlay.showMessage('Очень жаль, вы проиграли :(');
+      GamePlay.showMessage(`Очень жаль, вы проиграли :(!!! Количество набранных очков за игру ${this.points}, максимальное количество ${Math.max(this.pointsAll)}`);
     }
   }
 
@@ -227,13 +239,114 @@ export default class GameController {
 
   }
 
+  onNewGameClick() {
+    this.userTeam = new Team();
+    this.botTeam = new Team();
+    this.command = [];
+    this.counter = 0;
+    this.indexChar = null;
+    this.indexCursor = null;
+    this.levelGame = 1;
+    this.points = 0;
+
+    this.gamePlay.drawUi(themes.prairie);
+
+    this.userTeam.addAll(...generateTeam([Bowman, Swordsman], 1, 2));
+    this.botTeam.addAll(...generateTeam(botPerson, 1, 2));
+    this.getCommand(this.userTeam, userPosition);
+    this.getCommand(this.botTeam, botPosition);
+
+    this.gamePlay.redrawPositions(this.command);
+  }
+
+  onSaveGameClick() {
+    const savedGame = {
+      command: this.command,
+      levelGame: this.levelGame,
+      counter: this.counter,
+      points: this.points,
+      pointsAll: this.pointsAll,
+    };
+    this.stateService.save(GameState.from(savedGame));
+    GamePlay.showMessage('Идет сохранение игры!');
+  }
+
+  onLoadGameClick() {
+    GamePlay.showMessage('Загрузка данных!');
+    const load = (this.stateService.load());
+    this.levelGame = load.levelGame;
+    this.counter = load.counter;
+    this.points = load.points;
+    this.pointsAll = load.pointsAll;
+
+    this.userTeam = new Team();
+    this.botTeam = new Team();
+
+    this.command = load.command.map((elem) => {
+      let char;
+      const {
+        character: {
+          level, type, health, attack, defence,
+        }, position,
+      } = elem;
+      switch (type) {
+        case 'bowman':
+          char = new Bowman(level);
+          break;
+        case 'swordsman':
+          char = new Swordsman(level);
+          break;
+        case 'magician':
+          char = new Magician(level);
+          break;
+        case 'vampire':
+          char = new Vampire(level);
+          break;
+        case 'undead':
+          char = new Undead(level);
+          break;
+        default:
+          char = new Daemon(level);
+      }
+
+      char.health = health;
+      char.attack = attack;
+      char.defence = defence;
+
+      if (type === 'bowman' || type === 'swordsman' || type === 'magician') {
+        this.userTeam.add(char);
+      } else {
+        this.botTeam.add(char);
+      }
+
+      return new PositionedCharacter(char, position);
+    });
+
+    switch (this.levelGame) {
+      case 1:
+        this.gamePlay.drawUi(themes.prairie);
+        break;
+      case 2:
+        this.gamePlay.drawUi(themes.desert);
+        break;
+      case 3:
+        this.gamePlay.drawUi(themes.arctic);
+        break;
+      default:
+        this.gamePlay.drawUi(themes.mountain);
+        break;
+    }
+
+    this.gamePlay.redrawPositions(this.command);
+  }
+
   onCellClick(index) {
     if (this.counter === 15) {
       GamePlay.showMessage('Не ваш ход!');
       return;
     }
 
-    if (this.levelGame === 5) {
+    if (this.levelGame === 5 || this.userTeam.members.size === 0) {
       return;
     }
 
