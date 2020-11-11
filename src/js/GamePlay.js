@@ -1,3 +1,4 @@
+/* eslint-disable no-restricted-syntax */
 import { calcHealthLevel, calcTileType } from './utils';
 
 export default class GamePlay {

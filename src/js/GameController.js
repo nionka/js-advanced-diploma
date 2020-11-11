@@ -1,3 +1,4 @@
+/* eslint-disable no-restricted-syntax */
 /* eslint-disable max-len */
 import Bowman from './Characters/Bowman';
 import Swordsman from './Characters/Swordsman';
@@ -77,6 +78,11 @@ export default class GameController {
   }
 
   checkMove(indexPerson, index, char) {
+    const arr = this.calculateMove(indexPerson, char);
+    return arr.includes(index);
+  }
+
+  calculateMove(indexPerson, char) {
     const dist = char.character.distance;
     const field = this.gamePlay.boardSize;
     const left = [0, 8, 16, 24, 32, 40, 48, 56];
@@ -116,10 +122,15 @@ export default class GameController {
       }
     }
 
-    return result.includes(index);
+    return result.filter((value) => value >= 0 && value <= 63);
   }
 
   checkAttack(indexPerson, index, char) {
+    const arr = this.calculateAttack(indexPerson, char);
+    return arr.includes(index);
+  }
+
+  calculateAttack(indexPerson, char) {
     const dist = char.character.attackRange;
     const field = this.gamePlay.boardSize;
     const left = [0, 8, 16, 24, 32, 40, 48, 56];
@@ -163,7 +174,7 @@ export default class GameController {
       }
     }
 
-    return result.includes(index);
+    return result.filter((value) => value >= 0 && value <= 63);
   }
 
   checkWin() {
@@ -218,6 +229,8 @@ export default class GameController {
     const attacker = this.findCharacter(this.indexChar).character;
     const target = this.findCharacter(index).character;
     const damage = Math.max(attacker.attack - target.defence, attacker.attack * 0.1);
+    console.log('attaker', attacker);
+    console.log('terget', target);
 
     this.gamePlay.showDamage(index, damage).then(() => {
       target.health -= damage;
@@ -226,8 +239,11 @@ export default class GameController {
         this.userTeam.delete(target);
         this.botTeam.delete(target);
       }
+    }).then(() => {
       this.gamePlay.redrawPositions(this.command);
       this.checkWin();
+    }).catch((err) => {
+      GamePlay.showError(err);
     });
   }
 
@@ -236,7 +252,50 @@ export default class GameController {
   }
 
   botPlaying() {
+    if (this.counter !== 1) {
+      return;
+    }
 
+    const botCommand = this.command.filter((elem) => (elem.character instanceof Vampire || elem.character instanceof Daemon || elem.character instanceof Undead));
+    const userCommand = this.command.filter((elem) => (elem.character instanceof Bowman || elem.character instanceof Swordsman || elem.character instanceof Magician));
+    let bot = null;
+    let target = null;
+
+    botCommand.forEach((elem) => {
+      const botAttack = this.calculateAttack(elem.position, elem);
+      userCommand.forEach((val) => {
+        if (botAttack.includes(val.position)) {
+          bot = elem;
+          target = val;
+        }
+      });
+    });
+
+    if (target) {
+      // console.log(target);
+      const damage = Math.max(bot.character.attack - target.character.defence, bot.character.attack * 0.1);
+      this.gamePlay.showDamage(target.position, damage).then(() => {
+        target.character.health -= damage;
+        if (target.character.health <= 0) {
+          this.command.splice(this.command.indexOf(this.findCharacter(target.position)), 1);
+          this.userTeam.delete(target.character);
+          this.botTeam.delete(target.character);
+        }
+      }).then(() => {
+        this.gamePlay.redrawPositions(this.command);
+        this.checkWin();
+      }).catch((err) => {
+        GamePlay.showError(err);
+      });
+    } else {
+      bot = botCommand[Math.floor(Math.random() * botCommand.length)];
+      const botMove = this.calculateMove(bot.position, bot);
+      this.findCharacter(bot.position).position = botMove[Math.floor(Math.random() * botMove.length)];
+      this.gamePlay.redrawPositions(this.command);
+    }
+
+    this.counter = 0;
+    // console.log(bot, target);
   }
 
   onNewGameClick() {
@@ -341,7 +400,7 @@ export default class GameController {
   }
 
   onCellClick(index) {
-    if (this.counter === 15) {
+    if (this.counter === 1) {
       GamePlay.showMessage('Не ваш ход!');
       return;
     }
@@ -387,6 +446,8 @@ export default class GameController {
       if (this.indexChar !== index && this.gamePlay.boardEl.style.cursor === 'not-allowed') {
         GamePlay.showMessage('Так делать нельзя!');
       }
+
+      this.botPlaying();
     }
     // TODO: react to click
   }
