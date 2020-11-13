@@ -67,7 +67,7 @@ export default class GameController {
     return this.command.some((elem) => (elem.position === pos));
   }
 
-  findCharacter(index) {
+  findChar(index) {
     return this.command.find((elem) => (elem.position === index));
   }
 
@@ -77,12 +77,12 @@ export default class GameController {
     }
   }
 
-  checkMove(indexPerson, index, char) {
-    const arr = this.calculateMove(indexPerson, char);
+  checkMove(indexChar, index, char) {
+    const arr = this.calculateMove(indexChar, char);
     return arr.includes(index);
   }
 
-  calculateMove(indexPerson, char) {
+  calculateMove(indexChar, char) {
     const dist = char.character.distance;
     const field = this.gamePlay.boardSize;
     const left = [0, 8, 16, 24, 32, 40, 48, 56];
@@ -90,34 +90,34 @@ export default class GameController {
     const result = [];
 
     for (let i = 1; i <= dist; i += 1) {
-      result.push(indexPerson + (field * i));
-      result.push(indexPerson - (field * i));
+      result.push(indexChar + (field * i));
+      result.push(indexChar - (field * i));
     }
 
     for (let i = 1; i <= dist; i += 1) {
-      if (left.includes(indexPerson)) {
+      if (left.includes(indexChar)) {
         break;
       }
 
-      result.push(indexPerson - i);
-      result.push(indexPerson - (field * i + i));
-      result.push(indexPerson + (field * i - i));
+      result.push(indexChar - i);
+      result.push(indexChar - (field * i + i));
+      result.push(indexChar + (field * i - i));
 
-      if (left.includes(indexPerson - i)) {
+      if (left.includes(indexChar - i)) {
         break;
       }
     }
 
     for (let i = 1; i <= dist; i += 1) {
-      if (right.includes(indexPerson)) {
+      if (right.includes(indexChar)) {
         break;
       }
 
-      result.push(indexPerson + i);
-      result.push(indexPerson - (field * i - i));
-      result.push(indexPerson + (field * i + i));
+      result.push(indexChar + i);
+      result.push(indexChar - (field * i - i));
+      result.push(indexChar + (field * i + i));
 
-      if (right.includes(indexPerson + i)) {
+      if (right.includes(indexChar + i)) {
         break;
       }
     }
@@ -125,12 +125,12 @@ export default class GameController {
     return result.filter((value) => value >= 0 && value <= 63);
   }
 
-  checkAttack(indexPerson, index, char) {
-    const arr = this.calculateAttack(indexPerson, char);
+  checkAttack(indexChar, index, char) {
+    const arr = this.calculateAttack(indexChar, char);
     return arr.includes(index);
   }
 
-  calculateAttack(indexPerson, char) {
+  calculateAttack(indexChar, char) {
     const dist = char.character.attackRange;
     const field = this.gamePlay.boardSize;
     const left = [0, 8, 16, 24, 32, 40, 48, 56];
@@ -138,38 +138,38 @@ export default class GameController {
     const result = [];
 
     for (let i = 1; i <= dist; i += 1) {
-      result.push(indexPerson + (field * i));
-      result.push(indexPerson - (field * i));
+      result.push(indexChar + (field * i));
+      result.push(indexChar - (field * i));
     }
 
     for (let i = 1; i <= dist; i += 1) {
-      if (left.includes(indexPerson)) {
+      if (left.includes(indexChar)) {
         break;
       }
 
-      result.push(indexPerson - i);
+      result.push(indexChar - i);
       for (let j = 1; j <= dist; j += 1) {
-        result.push(indexPerson - i + field * j);
-        result.push(indexPerson - i - field * j);
+        result.push(indexChar - i + field * j);
+        result.push(indexChar - i - field * j);
       }
 
-      if (left.includes(indexPerson - i)) {
+      if (left.includes(indexChar - i)) {
         break;
       }
     }
 
     for (let i = 1; i <= dist; i += 1) {
-      if (right.includes(indexPerson)) {
+      if (right.includes(indexChar)) {
         break;
       }
 
-      result.push(indexPerson + i);
+      result.push(indexChar + i);
       for (let j = 1; j <= dist; j += 1) {
-        result.push(indexPerson + i + field * j);
-        result.push(indexPerson + i - field * j);
+        result.push(indexChar + i + field * j);
+        result.push(indexChar + i - field * j);
       }
 
-      if (right.includes(indexPerson + i)) {
+      if (right.includes(indexChar + i)) {
         break;
       }
     }
@@ -226,22 +226,21 @@ export default class GameController {
   }
 
   enterAttack(index) {
-    const attacker = this.findCharacter(this.indexChar).character;
-    const target = this.findCharacter(index).character;
+    const attacker = this.findChar(this.indexChar).character;
+    const target = this.findChar(index).character;
     const damage = Math.max(attacker.attack - target.defence, attacker.attack * 0.1);
-    console.log('attaker', attacker);
-    console.log('terget', target);
 
     this.gamePlay.showDamage(index, damage).then(() => {
       target.health -= damage;
       if (target.health <= 0) {
-        this.command.splice(this.command.indexOf(this.findCharacter(index)), 1);
+        this.command.splice(this.command.indexOf(this.findChar(index)), 1);
         this.userTeam.delete(target);
         this.botTeam.delete(target);
       }
     }).then(() => {
       this.gamePlay.redrawPositions(this.command);
       this.checkWin();
+      this.botPlaying();
     }).catch((err) => {
       GamePlay.showError(err);
     });
@@ -252,7 +251,7 @@ export default class GameController {
   }
 
   botPlaying() {
-    if (this.counter !== 1) {
+    if (this.counter !== 1 || this.botTeam.members.size === 0) {
       return;
     }
 
@@ -272,12 +271,11 @@ export default class GameController {
     });
 
     if (target) {
-      // console.log(target);
       const damage = Math.max(bot.character.attack - target.character.defence, bot.character.attack * 0.1);
       this.gamePlay.showDamage(target.position, damage).then(() => {
         target.character.health -= damage;
         if (target.character.health <= 0) {
-          this.command.splice(this.command.indexOf(this.findCharacter(target.position)), 1);
+          this.command.splice(this.command.indexOf(this.findChar(target.position)), 1);
           this.userTeam.delete(target.character);
           this.botTeam.delete(target.character);
         }
@@ -290,12 +288,11 @@ export default class GameController {
     } else {
       bot = botCommand[Math.floor(Math.random() * botCommand.length)];
       const botMove = this.calculateMove(bot.position, bot);
-      this.findCharacter(bot.position).position = botMove[Math.floor(Math.random() * botMove.length)];
+      this.findChar(bot.position).position = this.getRandomPosition(botMove);
       this.gamePlay.redrawPositions(this.command);
     }
 
     this.counter = 0;
-    // console.log(bot, target);
   }
 
   onNewGameClick() {
@@ -400,17 +397,17 @@ export default class GameController {
   }
 
   onCellClick(index) {
+    if (this.levelGame === 5 || this.userTeam.members.size === 0) {
+      return;
+    }
+
     if (this.counter === 1) {
       GamePlay.showMessage('Не ваш ход!');
       return;
     }
 
-    if (this.levelGame === 5 || this.userTeam.members.size === 0) {
-      return;
-    }
-
-    if (this.findCharacter(index)) {
-      if (userPerson.some((elem) => this.findCharacter(index).character instanceof elem)) {
+    if (this.findChar(index)) {
+      if (userPerson.some((elem) => this.findChar(index).character instanceof elem)) {
         if (this.indexChar === null) {
           this.indexChar = index;
         } else {
@@ -425,16 +422,17 @@ export default class GameController {
       }
     }
     if (this.indexChar !== null) {
-      if (this.checkMove(this.indexChar, index, this.findCharacter(this.indexChar)) && !this.findCharacter(index)) {
-        this.findCharacter(this.indexChar).position = index;
+      if (this.checkMove(this.indexChar, index, this.findChar(this.indexChar)) && !this.findChar(index)) {
+        this.findChar(this.indexChar).position = index;
         this.gamePlay.deselectCell(this.indexChar);
         this.gamePlay.deselectCell(this.indexCursor);
         this.indexChar = null;
         this.counter = 1;
         this.gamePlay.redrawPositions(this.command);
+        this.botPlaying();
       }
 
-      if (this.findCharacter(index) && botPerson.some((elem) => this.findCharacter(index).character instanceof elem) && this.checkAttack(this.indexChar, index, this.findCharacter(this.indexChar))) {
+      if (this.findChar(index) && botPerson.some((elem) => this.findChar(index).character instanceof elem) && this.checkAttack(this.indexChar, index, this.findChar(this.indexChar))) {
         this.enterAttack(index);
         this.gamePlay.deselectCell(this.indexChar);
         this.gamePlay.deselectCell(this.indexCursor);
@@ -446,15 +444,13 @@ export default class GameController {
       if (this.indexChar !== index && this.gamePlay.boardEl.style.cursor === 'not-allowed') {
         GamePlay.showMessage('Так делать нельзя!');
       }
-
-      this.botPlaying();
     }
     // TODO: react to click
   }
 
   onCellEnter(index) {
-    if (this.findCharacter(index)) {
-      const char = this.findCharacter(index).character;
+    if (this.findChar(index)) {
+      const char = this.findChar(index).character;
       const message = `\u{1F396}${char.level}\u{2694}${char.attack}\u{1F6E1}${char.defence}\u{2764}${char.health}`;
       this.gamePlay.showCellTooltip(message, index);
     }
@@ -467,18 +463,18 @@ export default class GameController {
         this.gamePlay.deselectCell(this.indexCursor);
       }
 
-      if (this.findCharacter(index) && userPerson.some((elem) => this.findCharacter(index).character instanceof elem)) {
+      if (this.findChar(index) && userPerson.some((elem) => this.findChar(index).character instanceof elem)) {
         this.gamePlay.setCursor(cursors.pointer);
       }
 
       if (this.indexChar !== index) {
-        if (!this.findCharacter(index) && this.checkMove(this.indexChar, index, this.findCharacter(this.indexChar))) {
+        if (!this.findChar(index) && this.checkMove(this.indexChar, index, this.findChar(this.indexChar))) {
           this.gamePlay.selectCell(index, 'green');
           this.gamePlay.setCursor(cursors.pointer);
           this.indexCursor = index;
         }
 
-        if (this.findCharacter(index) && botPerson.some((elem) => this.findCharacter(index).character instanceof elem) && this.checkAttack(this.indexChar, index, this.findCharacter(this.indexChar))) {
+        if (this.findChar(index) && botPerson.some((elem) => this.findChar(index).character instanceof elem) && this.checkAttack(this.indexChar, index, this.findChar(this.indexChar))) {
           this.gamePlay.setCursor(cursors.crosshair);
           this.gamePlay.selectCell(index, 'red');
           this.indexCursor = index;
