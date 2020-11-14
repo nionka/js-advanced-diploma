@@ -421,6 +421,7 @@ export default class GameController {
         GamePlay.showError('Это не Ваш персонаж!');
       }
     }
+
     if (this.indexChar !== null) {
       if (this.checkMove(this.indexChar, index, this.findChar(this.indexChar)) && !this.findChar(index)) {
         this.findChar(this.indexChar).position = index;
